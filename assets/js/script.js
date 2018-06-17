@@ -512,7 +512,7 @@ $(document).ready(() => {
             this.updateKeyboard(_keyboard);
 
             if (_.isString(dataP) && dataP !== '') {
-              const compressed = new Uint8Array([].map.call(atob(dataP), function(c) {
+              const compressed = new Uint8Array([].map.call(atob(decodeURIComponent(dataP)), function(c) {
                 return c.charCodeAt(0)
               })).buffer;
 
@@ -894,7 +894,7 @@ $(document).ready(() => {
     })).buffer;
     const compressed = pako.deflate(to_be_compressed);
 
-    const keymapData = btoa(String.fromCharCode.apply(null, compressed));
+    const keymapData = encodeURIComponent(btoa(String.fromCharCode.apply(null, compressed)));
     copyToClipboard(`${location.protocol}//${location.host}/#/data/${keymapData}`);
   }
 
