@@ -895,7 +895,7 @@ $(document).ready(() => {
     const compressed = pako.deflate(to_be_compressed);
 
     const keymapData = encodeURIComponent(btoa(String.fromCharCode.apply(null, compressed)));
-    copyToClipboard(`${location.protocol}//${location.host}/#/data/${keymapData}`);
+    copyToClipboard(`${location.protocol}//${location.host}${location.pathname}#/data/${keymapData}`);
   }
 
   function copyToClipboard(data) {
