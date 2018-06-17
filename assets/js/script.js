@@ -40,6 +40,7 @@ $(document).ready(() => {
   var $source = $('#source');
   var $export = $('#export');
   var $import = $('#import');
+  var $share = $('#share');
 
   var $fileImport = $('#fileImport');
   var $infoPreview = $('#infoPreview');
@@ -85,6 +86,9 @@ $(document).ready(() => {
     })
   );
 
+  // Share function that alert sharing URL
+  $share.click(shareURL);
+
   //Import function that takes in a JSON file reads it and loads the keyboard, layout and keymap data
   $fileImport.change(() => {
     var files = $fileImport[0].files;
@@ -125,6 +129,7 @@ $(document).ready(() => {
   var App = newApp(vueStore);
   var vueRouter = new VueRouter({
     routes: [
+      { path: '/data/:dataP(.+)', component: App },
       { path: '/:keyboardP(.+)/:layoutP(.+)', component: App },
       { path: '/', component: App }
     ]
@@ -497,14 +502,46 @@ $(document).ready(() => {
             store.commit('app/setKeyboards', data);
             _keyboard = _.first(this.keyboards);
             let { keyboardP } = this.$route.params;
-            if (
-              _.isString(keyboardP) &&
+            let { dataP } = this.$route.params;
+            if ( _.isString(keyboardP) &&
               keyboardP !== '' &&
               keyboardP !== PREVIEW_LABEL
             ) {
               _keyboard = keyboardP;
             }
             this.updateKeyboard(_keyboard);
+
+            if (_.isString(dataP) && dataP !== '') {
+              const compressed = new Uint8Array([].map.call(atob(dataP), function(c) {
+                return c.charCodeAt(0)
+              })).buffer;
+
+              const inflated = pako.inflate(compressed);
+              const inflatedString = String.fromCharCode.apply(null, inflated);
+              const data = JSON.parse(inflatedString);
+              reset_keymap();
+              console.log(data);
+
+              vueStore.commit('app/setKeyboard', data.keyboard);
+              vueStore
+                .dispatch('app/changeKeyboard', vueStore.getters['app/keyboard'])
+                .then(() => {
+                  vueStore.commit('app/setLayout', data.layout);
+                  vueStore.commit('app/setKeymapName', data.keymap);
+                  // todo validate these values
+                  vueRouter.replace({
+                    path: `/${data.keyboard}/${data.layout}`
+                  });
+
+                  load_converted_keymap(data.layers);
+
+                  let _layouts = vueStore.getters['app/layouts'];
+                  render_layout(_layouts[data.layout].map(v => Object.assign({}, v)));
+                  myKeymap.setDirty();
+                  disableOtherButtons();
+                  viewReadme(data.keyboard);
+                });
+            }
           }
         },
         /**
@@ -838,6 +875,41 @@ $(document).ready(() => {
       JSON.stringify(data)
     );
   }
+
+  function shareURL() {
+    //Squashes the keymaps to the api payload format, might look into making this a function
+    var layers = myKeymap.exportLayers({ compiler: false });
+
+    //API payload format
+    var data = {
+      keyboard: vueStore.getters['app/keyboard'],
+      keymap: vueStore.getters['app/keymapName'],
+      layout: vueStore.getters['app/layout'],
+      layers: layers
+    };
+
+    const jsonString = JSON.stringify(data);
+    const to_be_compressed = new Uint8Array([].map.call(jsonString, function(c) {
+      return c.charCodeAt(0);
+    })).buffer;
+    const compressed = pako.deflate(to_be_compressed);
+
+    const keymapData = btoa(String.fromCharCode.apply(null, compressed));
+    copyToClipboard(`${location.protocol}//${location.host}/#/data/${keymapData}`);
+  }
+
+  function copyToClipboard(data) {
+    const textArea = document.createElement('textarea');
+    textArea.value = data;
+    document.body.appendChild(textArea);
+    textArea.select();
+
+    const result = document.execCommand('copy');
+    document.body.removeChild(textArea);
+
+    return result;
+  }
+
   function scrollHandler() {
     if (offsetTop < $(document).scrollTop()) {
       $('.split-content').addClass('fixed');
